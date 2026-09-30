@@ -3,9 +3,9 @@
 #
 #   & ([scriptblock]::Create((irm https://super-banana-studios.github.io/setup.ps1))) -Repo <owner>/<repo>
 #
-# This file installs only what bash needs - Git for Windows (which brings bash, git-lfs and
-# curl) and the GitHub CLI - and then hands over to setup.sh, which is the one implementation
-# of the starter on every system.
+# This file installs what the starter needs - Git for Windows (which brings bash, git-lfs and
+# curl), the GitHub CLI, and Node.js LTS (which brings npm and npx) - and then hands over to
+# setup.sh, which is the one implementation of the starter on every system.
 #
 param(
     [Parameter(Position = 0)] [string] $Repo,
@@ -122,8 +122,9 @@ try {
 
     $needsGit = -not (Find-GitBash)
     $needsGh = -not (Get-Command gh -ErrorAction SilentlyContinue)
+    $needsNode = -not (Get-Command npx -ErrorAction SilentlyContinue)
 
-    if ($needsGit -or $needsGh) {
+    if ($needsGit -or $needsGh -or $needsNode) {
         if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
             throw @'
 Windows cannot find winget, the installer this line uses. On a machine that has just been set up it can take a few minutes to appear after the first sign-in - wait, open a new PowerShell window and run the line again. If it is still missing, run this once and then run the line again:
@@ -135,6 +136,7 @@ Windows cannot find winget, the installer this line uses. On a machine that has 
         Write-Host 'Windows will ask you to approve a prompt. That is expected.'
         if ($needsGit) { Install-WingetPackage 'Git.Git' 'Git for Windows' }
         if ($needsGh) { Install-WingetPackage 'GitHub.cli' 'the GitHub CLI' }
+        if ($needsNode) { Install-WingetPackage 'OpenJS.NodeJS.LTS' 'Node.js LTS (npm and npx)' }
         Update-PathFromRegistry
     }
 
@@ -146,6 +148,19 @@ Windows cannot find winget, the installer this line uses. On a machine that has 
     }
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
         throw 'The GitHub CLI is installed but Windows does not see it yet. Open a new PowerShell window and run the line again.'
+    }
+    if (-not (Get-Command npx -ErrorAction SilentlyContinue)) {
+        throw 'Node.js LTS is installed but Windows does not see npx yet. Open a new PowerShell window and run the line again.'
+    }
+
+    Write-Step 'Installing and updating shared agent skills'
+    & npx.cmd --yes skills@latest add mattpocock/skills --skill '*' --agent claude-code antigravity codex --global --yes
+    if ($LASTEXITCODE -ne 0) {
+        throw "The shared agent skills could not be installed (npx exit code $LASTEXITCODE)."
+    }
+    & npx.cmd --yes skills@latest update --global --yes
+    if ($LASTEXITCODE -ne 0) {
+        throw "The shared agent skills could not be updated (npx exit code $LASTEXITCODE)."
     }
 
     $starterPath = Join-Path $env:TEMP 'setup-git.sh'

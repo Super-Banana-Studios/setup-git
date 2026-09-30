@@ -4,9 +4,10 @@
 #
 #   setup.sh <owner>/<repo> [--branch <branch>] [--path <directory>]
 #
-# Installs git, git-lfs and gh, signs you in to GitHub as yourself, checks that you can
-# see the project repository, then fetches tools/setup.sh from that repository's main
-# branch and hands over to it with the same arguments.
+# Installs git, git-lfs, gh and Node.js LTS (which brings npm and npx), installs or updates the
+# shared agent skills, signs you in to GitHub as yourself, checks that you can see the project
+# repository, then fetches tools/setup.sh from that repository's main branch and hands over to
+# it with the same arguments.
 
 set -u
 
@@ -137,6 +138,11 @@ if [ "$os" = macos ]; then
 		step "Installing the GitHub CLI"
 		brew install gh || fail "The GitHub CLI did not install."
 	fi
+	if ! command -v npx >/dev/null 2>&1; then
+		admin_notice
+		step "Installing Node.js LTS (npm and npx)"
+		brew install node || fail "Node.js did not install, so the shared agent skills cannot be managed."
+	fi
 fi
 
 command -v git >/dev/null 2>&1 || fail "git is still not there after the install step."
@@ -146,8 +152,20 @@ if ! command -v gh >/dev/null 2>&1; then
 	fi
 	fail "The GitHub CLI is still not there after the install step."
 fi
+if ! command -v npx >/dev/null 2>&1; then
+	if [ "$os" = windows ]; then
+		fail "Node.js is missing. On Windows, run this line in PowerShell instead: $POWERSHELL_LINE"
+	fi
+	fail "Node.js is installed but npx is still not there. Open a new terminal and run the line again."
+fi
 
 git lfs install >/dev/null || fail "git lfs install failed, so large files would not be downloaded."
+
+step "Installing and updating shared agent skills"
+npx --yes skills@latest add mattpocock/skills --skill '*' --agent claude-code antigravity codex --global --yes ||
+	fail "The shared agent skills could not be installed."
+npx --yes skills@latest update --global --yes ||
+	fail "The shared agent skills could not be updated."
 
 step "GitHub sign-in"
 # GH_TOKEN and GITHUB_TOKEN beat a stored sign-in at everything, and while either is set the
