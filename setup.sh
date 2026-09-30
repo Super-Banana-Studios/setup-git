@@ -161,11 +161,30 @@ fi
 
 git lfs install >/dev/null || fail "git lfs install failed, so large files would not be downloaded."
 
-step "Installing and updating shared agent skills"
-npx --yes skills@latest add mattpocock/skills --skill '*' --agent claude-code antigravity codex --global --yes ||
-	fail "The shared agent skills could not be installed."
-npx --yes skills@latest update --global --yes ||
-	fail "The shared agent skills could not be updated."
+if [ "${SUPERB_AGENT_SKILLS_READY:-}" != 1 ]; then
+	step "Shared agent tools"
+	say "npx is installed."
+	skills_log=$(mktemp) || fail "A temporary log for the shared agent skills could not be created."
+	if ! npx --yes skills@latest add mattpocock/skills --skill '*' --agent claude-code antigravity codex --global --yes >"$skills_log" 2>&1; then
+		tail -40 "$skills_log" >&2
+		rm -f "$skills_log"
+		fail "The shared agent skills could not be installed."
+	fi
+	if ! npx --yes skills@latest update --global --yes >"$skills_log" 2>&1; then
+		tail -40 "$skills_log" >&2
+		rm -f "$skills_log"
+		fail "The shared agent skills could not be updated."
+	fi
+	mkdir -p "$HOME/.gemini/config/skills" || fail "Antigravity's shared skills folder could not be created."
+	for skill in "$HOME/.agents/skills"/*; do
+		[ -f "$skill/SKILL.md" ] || continue
+		target="$HOME/.gemini/config/skills/${skill##*/}"
+		[ -e "$target" ] || [ -L "$target" ] || ln -s "$skill" "$target" ||
+			fail "Antigravity could not be connected to ${skill##*/}."
+	done
+	rm -f "$skills_log"
+	say "Shared agent skills are up to date."
+fi
 
 step "GitHub sign-in"
 # GH_TOKEN and GITHUB_TOKEN beat a stored sign-in at everything, and while either is set the
