@@ -95,7 +95,7 @@ function Invoke-QuietNpx([string[]] $arguments, [string] $failure) {
     }
 }
 
-function Connect-AntigravitySkills {
+function Sync-AntigravitySkills {
     $shared = Join-Path $env:USERPROFILE '.agents\skills'
     $antigravity = Join-Path $env:USERPROFILE '.gemini\config\skills'
     New-Item -ItemType Directory -Path $antigravity -Force | Out-Null
@@ -103,9 +103,10 @@ function Connect-AntigravitySkills {
         Test-Path -LiteralPath (Join-Path $_.FullName 'SKILL.md')
     } | ForEach-Object {
         $target = Join-Path $antigravity $_.Name
-        if (-not (Test-Path -LiteralPath $target)) {
-            New-Item -ItemType Junction -Path $target -Target $_.FullName | Out-Null
+        if (Test-Path -LiteralPath $target) {
+            Remove-Item -LiteralPath $target -Recurse -Force
         }
+        Copy-Item -LiteralPath $_.FullName -Destination $target -Recurse
     }
 }
 
@@ -185,7 +186,7 @@ Windows cannot find winget, the installer this line uses. On a machine that has 
     Write-Host 'npx is installed.'
     Invoke-QuietNpx @('--yes', 'skills@latest', 'add', 'mattpocock/skills', '--skill', '*', '--agent', 'claude-code', 'antigravity', 'codex', '--global', '--yes') 'The shared agent skills could not be installed'
     Invoke-QuietNpx @('--yes', 'skills@latest', 'update', '--global', '--yes') 'The shared agent skills could not be updated'
-    Connect-AntigravitySkills
+    Sync-AntigravitySkills
     Write-Host 'Shared agent skills are up to date.'
     $env:SUPERB_AGENT_SKILLS_READY = '1'
 
