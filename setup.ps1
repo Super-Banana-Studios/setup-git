@@ -81,6 +81,34 @@ function Install-WingetPackage([string] $id, [string] $label) {
     }
 }
 
+function Invoke-QuietNpx([string[]] $arguments, [string] $failure) {
+    $log = Join-Path $env:TEMP "superb-npx-$([Guid]::NewGuid().ToString('N')).log"
+    try {
+        & npx.cmd @arguments *> $log
+        if ($LASTEXITCODE -ne 0) {
+            Get-Content -LiteralPath $log -Tail 40
+            throw "$failure (npx exit code $LASTEXITCODE)."
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $log -ErrorAction SilentlyContinue
+    }
+}
+
+function Connect-AntigravitySkills {
+    $shared = Join-Path $env:USERPROFILE '.agents\skills'
+    $antigravity = Join-Path $env:USERPROFILE '.gemini\config\skills'
+    New-Item -ItemType Directory -Path $antigravity -Force | Out-Null
+    Get-ChildItem -LiteralPath $shared -Directory | Where-Object {
+        Test-Path -LiteralPath (Join-Path $_.FullName 'SKILL.md')
+    } | ForEach-Object {
+        $target = Join-Path $antigravity $_.Name
+        if (-not (Test-Path -LiteralPath $target)) {
+            New-Item -ItemType Junction -Path $target -Target $_.FullName | Out-Null
+        }
+    }
+}
+
 function Find-GitBash {
     $candidates = @(
         (Join-Path $env:ProgramFiles 'Git\bin\bash.exe'),
@@ -153,15 +181,13 @@ Windows cannot find winget, the installer this line uses. On a machine that has 
         throw 'Node.js LTS is installed but Windows does not see npx yet. Open a new PowerShell window and run the line again.'
     }
 
-    Write-Step 'Installing and updating shared agent skills'
-    & npx.cmd --yes skills@latest add mattpocock/skills --skill '*' --agent claude-code antigravity codex --global --yes
-    if ($LASTEXITCODE -ne 0) {
-        throw "The shared agent skills could not be installed (npx exit code $LASTEXITCODE)."
-    }
-    & npx.cmd --yes skills@latest update --global --yes
-    if ($LASTEXITCODE -ne 0) {
-        throw "The shared agent skills could not be updated (npx exit code $LASTEXITCODE)."
-    }
+    Write-Step 'Shared agent tools'
+    Write-Host 'npx is installed.'
+    Invoke-QuietNpx @('--yes', 'skills@latest', 'add', 'mattpocock/skills', '--skill', '*', '--agent', 'claude-code', 'antigravity', 'codex', '--global', '--yes') 'The shared agent skills could not be installed'
+    Invoke-QuietNpx @('--yes', 'skills@latest', 'update', '--global', '--yes') 'The shared agent skills could not be updated'
+    Connect-AntigravitySkills
+    Write-Host 'Shared agent skills are up to date.'
+    $env:SUPERB_AGENT_SKILLS_READY = '1'
 
     $starterPath = Join-Path $env:TEMP 'setup-git.sh'
     Invoke-RestMethod -Uri $starterUrl -OutFile $starterPath -ErrorAction Stop
@@ -203,5 +229,6 @@ catch {
     Write-Host $contact -ForegroundColor Red
 }
 finally {
+    Remove-Item Env:SUPERB_AGENT_SKILLS_READY -ErrorAction SilentlyContinue
     Restore-Console
 }
