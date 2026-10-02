@@ -4,8 +4,7 @@
 #
 #   setup.sh <owner>/<repo> [--branch <branch>] [--path <directory>]
 #
-# Installs git, git-lfs, gh and Node.js LTS (which brings npm and npx), installs or updates the
-# shared agent skills, signs you in to GitHub as yourself, checks that you can see the project
+# Installs git, git-lfs and gh, signs you in to GitHub as yourself, checks that you can see the project
 # repository, then fetches tools/setup.sh from that repository's main branch and hands over to
 # it with the same arguments.
 
@@ -138,11 +137,6 @@ if [ "$os" = macos ]; then
 		step "Installing the GitHub CLI"
 		brew install gh || fail "The GitHub CLI did not install."
 	fi
-	if ! command -v npx >/dev/null 2>&1; then
-		admin_notice
-		step "Installing Node.js LTS (npm and npx)"
-		brew install node || fail "Node.js did not install, so the shared agent skills cannot be managed."
-	fi
 fi
 
 command -v git >/dev/null 2>&1 || fail "git is still not there after the install step."
@@ -152,39 +146,8 @@ if ! command -v gh >/dev/null 2>&1; then
 	fi
 	fail "The GitHub CLI is still not there after the install step."
 fi
-if ! command -v npx >/dev/null 2>&1; then
-	if [ "$os" = windows ]; then
-		fail "Node.js is missing. On Windows, run this line in PowerShell instead: $POWERSHELL_LINE"
-	fi
-	fail "Node.js is installed but npx is still not there. Open a new terminal and run the line again."
-fi
 
 git lfs install >/dev/null || fail "git lfs install failed, so large files would not be downloaded."
-
-if [ "${SUPERB_AGENT_SKILLS_READY:-}" != 1 ]; then
-	step "Shared agent tools"
-	say "npx is installed."
-	skills_log=$(mktemp) || fail "A temporary log for the shared agent skills could not be created."
-	if ! npx --yes skills@latest add mattpocock/skills --skill '*' --agent claude-code antigravity codex --global --yes >"$skills_log" 2>&1; then
-		tail -40 "$skills_log" >&2
-		rm -f "$skills_log"
-		fail "The shared agent skills could not be installed."
-	fi
-	if ! npx --yes skills@latest update --global --yes >"$skills_log" 2>&1; then
-		tail -40 "$skills_log" >&2
-		rm -f "$skills_log"
-		fail "The shared agent skills could not be updated."
-	fi
-	mkdir -p "$HOME/.gemini/config/skills" || fail "Antigravity's shared skills folder could not be created."
-	for skill in "$HOME/.agents/skills"/*; do
-		[ -f "$skill/SKILL.md" ] || continue
-		target="$HOME/.gemini/config/skills/${skill##*/}"
-		[ -e "$target" ] || [ -L "$target" ] || ln -s "$skill" "$target" ||
-			fail "Antigravity could not be connected to ${skill##*/}."
-	done
-	rm -f "$skills_log"
-	say "Shared agent skills are up to date."
-fi
 
 step "GitHub sign-in"
 # GH_TOKEN and GITHUB_TOKEN beat a stored sign-in at everything, and while either is set the

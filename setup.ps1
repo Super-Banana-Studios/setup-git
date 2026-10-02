@@ -4,7 +4,7 @@
 #   & ([scriptblock]::Create((irm https://super-banana-studios.github.io/setup.ps1))) -Repo <owner>/<repo>
 #
 # This file installs what the starter needs - Git for Windows (which brings bash, git-lfs and
-# curl), the GitHub CLI, and Node.js LTS (which brings npm and npx) - and then hands over to
+# curl) and the GitHub CLI - and then hands over to
 # setup.sh, which is the one implementation of the starter on every system.
 #
 param(
@@ -81,35 +81,6 @@ function Install-WingetPackage([string] $id, [string] $label) {
     }
 }
 
-function Invoke-QuietNpx([string[]] $arguments, [string] $failure) {
-    $log = Join-Path $env:TEMP "superb-npx-$([Guid]::NewGuid().ToString('N')).log"
-    try {
-        & npx.cmd @arguments *> $log
-        if ($LASTEXITCODE -ne 0) {
-            Get-Content -LiteralPath $log -Tail 40
-            throw "$failure (npx exit code $LASTEXITCODE)."
-        }
-    }
-    finally {
-        Remove-Item -LiteralPath $log -ErrorAction SilentlyContinue
-    }
-}
-
-function Sync-AntigravitySkills {
-    $shared = Join-Path $env:USERPROFILE '.agents\skills'
-    $antigravity = Join-Path $env:USERPROFILE '.gemini\config\skills'
-    New-Item -ItemType Directory -Path $antigravity -Force | Out-Null
-    Get-ChildItem -LiteralPath $shared -Directory | Where-Object {
-        Test-Path -LiteralPath (Join-Path $_.FullName 'SKILL.md')
-    } | ForEach-Object {
-        $target = Join-Path $antigravity $_.Name
-        if (Test-Path -LiteralPath $target) {
-            Remove-Item -LiteralPath $target -Recurse -Force
-        }
-        Copy-Item -LiteralPath $_.FullName -Destination $target -Recurse
-    }
-}
-
 function Find-GitBash {
     $candidates = @(
         (Join-Path $env:ProgramFiles 'Git\bin\bash.exe'),
@@ -151,9 +122,8 @@ try {
 
     $needsGit = -not (Find-GitBash)
     $needsGh = -not (Get-Command gh -ErrorAction SilentlyContinue)
-    $needsNode = -not (Get-Command npx -ErrorAction SilentlyContinue)
 
-    if ($needsGit -or $needsGh -or $needsNode) {
+    if ($needsGit -or $needsGh) {
         if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
             throw @'
 Windows cannot find winget, the installer this line uses. On a machine that has just been set up it can take a few minutes to appear after the first sign-in - wait, open a new PowerShell window and run the line again. If it is still missing, run this once and then run the line again:
@@ -165,7 +135,6 @@ Windows cannot find winget, the installer this line uses. On a machine that has 
         Write-Host 'Windows will ask you to approve a prompt. That is expected.'
         if ($needsGit) { Install-WingetPackage 'Git.Git' 'Git for Windows' }
         if ($needsGh) { Install-WingetPackage 'GitHub.cli' 'the GitHub CLI' }
-        if ($needsNode) { Install-WingetPackage 'OpenJS.NodeJS.LTS' 'Node.js LTS (npm and npx)' }
         Update-PathFromRegistry
     }
 
@@ -178,18 +147,6 @@ Windows cannot find winget, the installer this line uses. On a machine that has 
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
         throw 'The GitHub CLI is installed but Windows does not see it yet. Open a new PowerShell window and run the line again.'
     }
-    if (-not (Get-Command npx -ErrorAction SilentlyContinue)) {
-        throw 'Node.js LTS is installed but Windows does not see npx yet. Open a new PowerShell window and run the line again.'
-    }
-
-    Write-Step 'Shared agent tools'
-    Write-Host 'npx is installed.'
-    Invoke-QuietNpx @('--yes', 'skills@latest', 'add', 'mattpocock/skills', '--skill', '*', '--agent', 'claude-code', 'antigravity', 'codex', '--global', '--yes') 'The shared agent skills could not be installed'
-    Invoke-QuietNpx @('--yes', 'skills@latest', 'update', '--global', '--yes') 'The shared agent skills could not be updated'
-    Sync-AntigravitySkills
-    Write-Host 'Shared agent skills are up to date.'
-    $env:SUPERB_AGENT_SKILLS_READY = '1'
-
     $starterPath = Join-Path $env:TEMP 'setup-git.sh'
     Invoke-RestMethod -Uri $starterUrl -OutFile $starterPath -ErrorAction Stop
     if (-not (Test-Path $starterPath) -or (Get-Item $starterPath).Length -eq 0) {
@@ -230,6 +187,5 @@ catch {
     Write-Host $contact -ForegroundColor Red
 }
 finally {
-    Remove-Item Env:SUPERB_AGENT_SKILLS_READY -ErrorAction SilentlyContinue
     Restore-Console
 }
