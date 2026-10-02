@@ -120,6 +120,11 @@ try {
         throw "This line supports Windows 11 (x64) and Macs with Apple Silicon. Your machine is Windows $($version.Major).$($version.Minor) build $($version.Build) ($architecture)."
     }
 
+    # A window opened before an earlier run installed Git or the GitHub CLI still has the old
+    # PATH, and so does super-banana.cmd started from it: gh looked missing, winget refused to
+    # install it again and the line stopped (Windows Sandbox, 2026-10-02). The registry has the
+    # current PATH.
+    Update-PathFromRegistry
     $needsGit = -not (Find-GitBash)
     $needsGh = -not (Get-Command gh -ErrorAction SilentlyContinue)
 
