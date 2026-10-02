@@ -1,0 +1,28 @@
+#!/bin/bash
+#
+# The line that sets up this Mac and every Super Banana project in the current folder:
+#
+#   /bin/bash -c "$(curl -fsSL https://super-banana-studios.github.io/setup-mac)"
+#
+# The repository whose tools/setup.sh does the work is named here, so the line carries no
+# arguments. That script takes the folder the terminal stands in as the projects folder, and leaves
+# super-banana.command there, which runs this same line from that folder with a double click.
+#
+# Not `curl ... | bash`: that makes the pipe the script's standard input, and the sign-ins below
+# read from it - gh and claude would both see end of file instead of the keyboard. The starter is
+# written to a file and run from there, which leaves standard input the terminal it came from.
+
+set -u
+
+starter=$(mktemp -t superb-setup) || {
+	printf '\nThis machine would not give a temporary file to work in.\nAsk Ivan Murashka (@imurashka) or Nikolay (@nternovoy).\n' >&2
+	exit 1
+}
+trap 'rm -f "$starter"' EXIT
+
+if ! curl -fsSL https://super-banana-studios.github.io/setup.sh -o "$starter"; then
+	printf '\nThe setup script could not be downloaded. Check that you are online, then run the line again.\nAsk Ivan Murashka (@imurashka) or Nikolay (@nternovoy).\n' >&2
+	exit 1
+fi
+
+/bin/bash "$starter" Super-Banana-Studios/setup
